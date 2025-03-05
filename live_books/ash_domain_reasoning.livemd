@@ -79,7 +79,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, Politician, <<70, 79, 82, 49, 0, 0, 19, ...>>, :ok}
+{:module, Politician, <<70, 79, 82, 49, 0, 0, 52, ...>>, :ok}
 ```
 
 Great, we have our schema describing politicans and the offices they held. Let's notice a few things that may stand out from regular Ecto usage. First, since there is no database backing the schema, it doesn't make sense to give it a primary_key. This also makes sense because there is no sensible value for the LLM to respond with.
@@ -107,14 +107,10 @@ Instructor.chat_completion(
 ```
 {:ok,
  %Politician{
-   first_name: "George",
-   last_name: "W. Bush",
+   first_name: "George ",
+   last_name: "Walker",
    offices_held: [
-     %Politician.Office{office: :president, from_date: ~D[2001-01-20], to_date: ~D[2009-01-20]},
-     %Politician.Office{office: :governor, from_date: ~D[1995-01-17], to_date: ~D[2000-12-21]},
-     %Politician.Office{office: :congress, from_date: ~D[1971-01-03], to_date: ~D[1972-01-03]},
-     %Politician.Office{office: :senate, from_date: ~D[1987-01-03], to_date: ~D[1993-01-03]},
-     %Politician.Office{office: :senate, from_date: ~D[1967-01-03], to_date: ~D[1968-01-03]}
+     %Politician.Office{office: :president, from_date: ~D[2024-07-20], to_date: ~D[2024-07-20]}
    ]
  }}
 ```
@@ -160,7 +156,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, NumberSeries, <<70, 79, 82, 49, 0, 0, 18, ...>>, {:validate_changeset, 1}}
+{:module, NumberSeries, <<70, 79, 82, 49, 0, 0, 34, ...>>, {:validate_changeset, 1}}
 ```
 
 In this albeit contrived example, we're going to get the LLM to return a series of numbers and validate whether it has at least 10 numbers and that the sum of the series is even.
@@ -191,16 +187,6 @@ errors =
 <!-- livebook:{"output":true} -->
 
 ```
-
-13:10:53.040 [warning]   Using Ecto Schemas without `use Instructor` is deprecated.
-
-  Please change your schema to include `use Instructor` and use the `@llm_doc` attribute to
-  define your schema documentation you'd like to send to the LLM.
-```
-
-<!-- livebook:{"output":true} -->
-
-```
 {%{series: [1, 2, 3, 4, 5]},
  %{series: ["The sum of the series must be even", "should have at least 10 item(s)"]}}
 ```
@@ -224,15 +210,16 @@ Instructor.chat_completion(
 
 ```
 
-13:11:10.259 [debug] Retrying LLM call for NumberSeries:
+18:27:34.701 [debug] Retrying LLM call for NumberSeries:
 
  "series - The sum of the series must be even\nseries - should have at least 10 item(s)"
+
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok, %NumberSeries{series: [4, 2, 6, 6, 14, 62, 9, 9, 26, 44, 98]}}
+{:ok, %NumberSeries{series: [1, 2, 3, 4, 5, 6, 7, 8, 10, 16]}}
 ```
 
 Here we demonstrated using regular Lixar code to validate the outputs of an LLM, but we don't have to stop there. We can actually use the LLM to validate the outputs of the LLM.
@@ -262,7 +249,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, QuestionAnswer, <<70, 79, 82, 49, 0, 0, 17, ...>>, {:validate_changeset, 1}}
+{:module, QuestionAnswer, <<70, 79, 82, 49, 0, 0, 34, ...>>, {:validate_changeset, 1}}
 ```
 
 ```elixir
@@ -272,16 +259,6 @@ end
   answer: "Sex, drugs, and rock'n roll"
 })
 |> QuestionAnswer.validate_changeset()
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-
-13:11:28.770 [warning]   Using Ecto Schemas without `use Instructor` is deprecated.
-
-  Please change your schema to include `use Instructor` and use the `@llm_doc` attribute to
-  define your schema documentation you'd like to send to the LLM.
 ```
 
 <!-- livebook:{"branch_parent_index":0} -->
@@ -314,8 +291,8 @@ presidents_stream =
 
 ```
 #Stream<[
-  enum: #Function<62.38948127/2 in Stream.transform/3>,
-  funs: [#Function<50.38948127/1 in Stream.map/2>]
+  enum: #Function<61.82544474/2 in Stream.transform/3>,
+  funs: [#Function<49.82544474/1 in Stream.map/2>]
 ]>
 ```
 
@@ -360,6 +337,11 @@ presidents_stream
       office: :president,
       from_date: ~D[1801-03-04],
       to_date: ~D[1809-03-04]
+    },
+    %Politician.Office{
+      office: :vice_president,
+      from_date: ~D[1797-03-04],
+      to_date: ~D[1801-03-04]
     }
   ]
 }
@@ -371,26 +353,14 @@ presidents_stream
       office: :president,
       from_date: ~D[1809-03-04],
       to_date: ~D[1817-03-04]
-    }
-  ]
-}
-%Politician{
-  first_name: "James",
-  last_name: "Monroe",
-  offices_held: [
+    },
     %Politician.Office{
-      office: :president,
-      from_date: ~D[1817-03-04],
-      to_date: ~D[1825-03-04]
+      office: :vice_president,
+      from_date: ~D[1797-03-04],
+      to_date: ~D[1801-03-04]
     }
   ]
 }
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-:ok
 ```
 
 An important thing to note here is that we're running the validations independently for each value in the array.  That's why the values in the stream are either `{:ok, Ecto.Schema.t()}` or `{:error, Ecto.Changeset.t()}`.
@@ -495,7 +465,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, EctoURI, <<70, 79, 82, 49, 0, 0, 14, ...>>, {:dump, 1}}
+{:module, EctoURI, <<70, 79, 82, 49, 0, 0, 22, ...>>, {:dump, 1}}
 ```
 
 ```elixir
@@ -567,7 +537,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, EctoAshAttribute, <<70, 79, 82, 49, 0, 0, 14, ...>>, {:dump, 1}}
+{:module, EctoAshAttribute, <<70, 79, 82, 49, 0, 0, 23, ...>>, {:dump, 1}}
 ```
 
 ```elixir
@@ -612,7 +582,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, InstructorHelper, <<70, 79, 82, 49, 0, 0, 9, ...>>, {:gen, 4}}
+{:module, InstructorHelper, <<70, 79, 82, 49, 0, 0, 10, ...>>, {:gen, 4}}
 ```
 
 ```elixir
@@ -632,13 +602,13 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-LLM Response: %{response: "A message from Mars, echoing across the cosmos!"}
+LLM Response: %{response: "Hello, World!"}
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-%{response: "A message from Mars, echoing across the cosmos!"}
+%{response: "Hello, World!"}
 ```
 
 ```elixir
@@ -740,7 +710,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, AshOptions, <<70, 79, 82, 49, 0, 0, 21, ...>>, :ok}
+{:module, AshOptions, <<70, 79, 82, 49, 0, 0, 92, ...>>, :ok}
 ```
 
 ```elixir
@@ -789,27 +759,15 @@ gen(AshOptions, sys_msg, user_msg)
 <!-- livebook:{"output":true} -->
 
 ```
-{:ok,
- %AshOptions{
-   full_module_name: nil,
-   default_actions: [],
-   uuid_primary_key: nil,
-   uuid_v7_primary_key: nil,
-   integer_primary_key: nil,
-   domain: nil,
-   base: "Ash.Resource",
-   timestamps: false,
-   attributes: [],
-   relationships: [
-     %AshOption.Relationship{
-       type: "belongs_to",
-       name: "representative",
-       destination: "Glass.Support.Ticket",
-       modifiers: ["public"]
-     }
-   ],
-   extend: []
- }}
+{:error,
+ #Ecto.Changeset<
+   action: nil,
+   changes: %{},
+   errors: [relationships: {"is invalid", [validation: :embed, type: {:array, :map}]}],
+   data: #AshOptions<>,
+   valid?: false,
+   ...
+ >}
 ```
 
 ```elixir
@@ -1412,4 +1370,4 @@ gen(DomainReasoning, sys_msg, user_msg2, "llama-3.3-70b-specdec")
  }}
 ```
 
-<!-- livebook:{"offset":50000,"stamp":{"token":"XCP.cL0kotMqHIbD0_CLVYoMVhqvYnj7f2PcCV_MNN8oxSoFZ3rKcikz-pGz73ky4kouRoY1jK5YgD-t4nMl17PkNchIOKOjecVRxeU6fo4etlTK1jDh8r8d","version":2}} -->
+<!-- livebook:{"offset":48725,"stamp":{"token":"XCP.D_yeH5lTufq9Lc3vJUoOosM1us2bnIU8SFVHj-KMdYFn4VCO0XYZV-FI3zJUXujr5kyWFG6ZCHAF7Hf-if3VRW1sf5j703zmrIsutjJwj5WaKoFR89JA","version":2}} -->

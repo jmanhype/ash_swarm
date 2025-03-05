@@ -179,4 +179,4 @@ context = [
 openai |> StreamingOrderbot.create_orderbot(context)
 ```
 
-<!-- livebook:{"offset":5181,"stamp":{"token":"XCP._zaN72wmySHo7xaz9aD3IN5qf1-kEhH8wbwEODcWjvEDi5ojDXqyxZWh88eGpNlcMH-iIvTF1V7zTfjb8gMwFOarNk09uFkWwKnmoCgebNonZoX5ayTC","version":2}} -->
+<!-- livebook:{"offset":5215,"stamp":{"token":"XCP.0zzAsGXFM7m4WJwSAIVI8XVXra1HrKswlvonCdTHiMNzBw8yUJQyyQ6cX4GXUxOlzl_Xhka32REXAI001CbKsT5Gx6hlM9hGs14QTlYxflQs5NN8zt3w","version":2}} -->

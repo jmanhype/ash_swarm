@@ -2,8 +2,8 @@ import Config
 
 # Configure your database
 config :ash_swarm, AshSwarm.Repo,
-  username: "postgres",
-  password: "postgres",
+  username: "speed",
+  password: "",
   hostname: "localhost",
   database: "ash_swarm_dev",
   stacktrace: true,

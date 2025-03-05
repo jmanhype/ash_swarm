@@ -19,8 +19,10 @@ defmodule AshSwarm.Application do
       {Phoenix.PubSub, name: AshSwarm.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: AshSwarm.Finch},
-      # Start a worker by calling: AshSwarm.Worker.start_link(arg)
-      # {AshSwarm.Worker, arg},
+      # Start the UsageStats server for adaptive code evolution
+      {AshSwarm.Foundations.UsageStats, []},
+      # Start the AdaptiveScheduler for scheduling code evolution
+      {AshSwarm.Foundations.AdaptiveScheduler, []},
       # Start to serve requests, typically the last entry
       AshSwarmWeb.Endpoint
     ]
@@ -36,6 +38,12 @@ defmodule AshSwarm.Application do
   @impl true
   def config_change(changed, _new, removed) do
     AshSwarmWeb.Endpoint.config_change(changed, removed)
+    :ok
+  end
+  
+  @impl true
+  def stop(_state) do
+    # Perform any cleanup when the application stops
     :ok
   end
 end
