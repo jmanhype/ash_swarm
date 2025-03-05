@@ -28,6 +28,12 @@ The patterns are organized into the following categories:
 | [Self-Modifying Resource](./Core/self_modifying_resource.md) | Resources that can adapt their structure at runtime |
 | [Resource-Driven Living Documentation](./Core/resource_driven_documentation.md) | System to keep documentation in sync with resource definitions |
 
+### Meta Patterns (Fully Implemented)
+
+| Pattern | Description |
+|---------|-------------|
+| [Intelligent Meta-Resource Framework](./Meta/intelligent_meta_resource_framework.md) | Framework for intelligently generating and evolving domain resources with semantic understanding |
+
 ### Emerging Patterns (Partially Implemented)
 
 | Pattern | Description |
