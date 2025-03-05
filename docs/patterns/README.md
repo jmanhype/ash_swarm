@@ -33,8 +33,11 @@ The patterns are organized into the following categories:
 
 | Pattern | Description |
 |---------|-------------|
+| [Living Project Pattern](./Meta/living_project_pattern.md) | Comprehensive ecosystem where projects continuously evolve, adapt, and improve themselves |
 | [Adaptive Code Evolution Pattern](./Meta/adaptive_code_evolution_pattern.md) | Framework for code to analyze itself and continuously evolve based on usage patterns |
 | [Intelligent Meta-Resource Framework](./Meta/intelligent_meta_resource_framework.md) | Framework for intelligently generating and evolving domain resources with semantic understanding |
+| [Bootstrap Evolution Pipeline](./Meta/bootstrap_evolution_pipeline.md) | Pattern for creating generators that evolve over time based on feedback and usage |
+| [Igniter Semantic Patching](./Meta/igniter_semantic_patching.md) | Tools for intelligently modifying code with semantic understanding |
 
 ### Emerging Patterns (Partially Implemented)
 
