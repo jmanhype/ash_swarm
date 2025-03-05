@@ -171,14 +171,14 @@ defmodule AshSwarm.Foundations.IgniterSemanticPatching.Example do
     sequence: fn patches, target, options ->
       # Apply resource patches
       {:ok, updated_resource} = Enum.reduce_while(patches, {:ok, nil}, fn patch, {:ok, _} ->
-        case apply_patch(patch, target, options) do
+        case AshSwarm.Foundations.IgniterSemanticPatching.apply_patch(patch, target, options) do
           {:ok, updated} -> {:cont, {:ok, updated}}
           error -> {:halt, error}
         end
       end)
       
       # Generate event and event store modules
-      {:ok, _} = generate_code(:event_module, "#{target}.Event", options)
+      {:ok, _} = AshSwarm.Foundations.IgniterSemanticPatching.generate_code(:event_module, "#{target}.Event", options)
       
       # Return the final result
       {:ok, updated_resource}
@@ -189,24 +189,24 @@ defmodule AshSwarm.Foundations.IgniterSemanticPatching.Example do
     end
   
   # Helper functions that would use Igniter in a real implementation
-  defp has_attribute?(module_info, attribute) do
+  def has_attribute?(module_info, attribute) do
     # This would use Igniter.Code.Module.has_attribute? in a real implementation
     Map.get(module_info, :attributes, []) |> Enum.member?(attribute)
   end
   
-  defp has_section?(module_info, section_name) do
+  def has_section?(module_info, section_name) do
     # This would use Igniter.Code.Module.has_section? in a real implementation
     Map.get(module_info, :sections, []) |> Enum.member?(section_name)
   end
   
-  defp add_section(module_info, section_name, content) do
+  def add_section(module_info, section_name, content) do
     # This would use Igniter.Code.Module.add_section in a real implementation
     sections = Map.get(module_info, :sections, [])
     updated_sections = [section_name | sections]
     Map.put(module_info, :sections, updated_sections)
   end
   
-  defp update_section(module_info, section_name, transformer) do
+  def update_section(module_info, section_name, transformer) do
     # This would use Igniter.Code.Module.update_section in a real implementation
     module_info
   end
@@ -236,24 +236,24 @@ defmodule AshSwarm.Foundations.IgniterSemanticPatching.Example do
     # Apply patches to each resource
     results = Enum.map(resources, fn resource ->
       # Apply individual patch
-      {:ok, _} = apply_patch(:add_timestamps, resource, [])
+      {:ok, _} = AshSwarm.Foundations.IgniterSemanticPatching.apply_patch(:add_timestamps, resource, [])
       
       # Apply composed patches
-      {:ok, _} = compose_and_apply(
+      {:ok, _} = AshSwarm.Foundations.IgniterSemanticPatching.compose_and_apply(
         :upgrade_resource_v1_to_v2,
         resource,
-        all_patches: semantic_patches()
+        all_patches: []  # In a real implementation, this would use semantic_patches()
       )
       
       # Generate API for the resource
-      {:ok, _} = generate_code(
+      {:ok, _} = AshSwarm.Foundations.IgniterSemanticPatching.generate_code(
         :crud_api,
         "#{resource}API",
         actions: [:create, :read, :update, :destroy, :list]
       )
       
       # Generate event module for the resource
-      {:ok, _} = generate_code(
+      {:ok, _} = AshSwarm.Foundations.IgniterSemanticPatching.generate_code(
         :event_module,
         "#{resource}.Event",
         events: [:created, :updated, :destroyed]
