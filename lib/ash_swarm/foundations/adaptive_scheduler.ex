@@ -183,15 +183,20 @@ defmodule AshSwarm.Foundations.AdaptiveScheduler do
     
     # Reschedule
     schedule_item = Enum.find(new_scheduled, fn item -> item.module == module end)
-    timer_ref = schedule_evolution_timer(module, type, schedule_item.schedule)
     
-    new_state = %{
-      state |
-      scheduled: new_scheduled,
-      timers: Map.put(state.timers, module, timer_ref)
-    }
-    
-    {:noreply, new_state}
+    if schedule_item do
+      timer_ref = schedule_evolution_timer(module, type, schedule_item.schedule)
+      
+      new_state = %{
+        state |
+        scheduled: new_scheduled,
+        timers: Map.put(state.timers, module, timer_ref)
+      }
+      
+      {:noreply, new_state}
+    else
+      {:noreply, %{state | scheduled: new_scheduled}}
+    end
   end
   
   @impl true
@@ -251,20 +256,25 @@ defmodule AshSwarm.Foundations.AdaptiveScheduler do
     # This is a simplified implementation
     now = DateTime.utc_now()
     
-    [hour_str, minute_str] = String.split(time, ":")
-    hour = String.to_integer(hour_str)
-    minute = String.to_integer(minute_str)
-    
-    target = %{now | hour: hour, minute: minute, second: 0, microsecond: {0, 0}}
-    
-    target_in_future = if DateTime.compare(target, now) == :lt do
-      # Target time is in the past, so schedule for tomorrow
-      DateTime.add(target, 1, :day)
-    else
-      target
+    case String.split(time, ":") do
+      [hour_str, minute_str] ->
+        hour = String.to_integer(hour_str)
+        minute = String.to_integer(minute_str)
+        
+        target = %{now | hour: hour, minute: minute, second: 0, microsecond: {0, 0}}
+        
+        target_in_future = if DateTime.compare(target, now) == :lt do
+          # Target time is in the past, so schedule for tomorrow
+          DateTime.add(target, 1, :day)
+        else
+          target
+        end
+        
+        DateTime.diff(target_in_future, now, :millisecond)
+      _ ->
+        # Invalid time format, use daily default
+        @one_day_ms
     end
-    
-    DateTime.diff(target_in_future, now, :millisecond)
   end
   
   defp calculate_delay(_) do
@@ -282,14 +292,14 @@ defmodule AshSwarm.Foundations.AdaptiveScheduler do
         # Check based on schedule
         case item.schedule do
           "daily" ->
-            DateTime.diff(now, last_run, :day) >= 1
+            DateTime.diff(now, last_run, :second) >= 24 * 60 * 60
             
           "hourly" ->
-            DateTime.diff(now, last_run, :hour) >= 1
+            DateTime.diff(now, last_run, :second) >= 60 * 60
             
           time when is_binary(time) ->
             # Specific time
-            DateTime.diff(now, last_run, :day) >= 1
+            DateTime.diff(now, last_run, :second) >= 24 * 60 * 60
             
           _ ->
             false
@@ -304,6 +314,9 @@ defmodule AshSwarm.Foundations.AdaptiveScheduler do
   
   defp run_evolution(module, type) do
     Logger.info("Running #{type} evolution for module: #{inspect(module)}")
+    
     # In a real implementation, this would dispatch to other evolution types
+    # This is a placeholder for actual evolution logic
+    Logger.warning("No evolution implementation found for type #{type} on module #{inspect(module)}")
   end
 end

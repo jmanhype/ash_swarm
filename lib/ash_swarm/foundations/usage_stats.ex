@@ -1,20 +1,16 @@
 defmodule AshSwarm.Foundations.UsageStats do
   @moduledoc """
-  Tracks usage statistics for modules and functions in the system.
+  Tracks usage statistics for modules and actions to inform adaptive optimizations.
   
-  This module provides the ability to store and retrieve usage statistics
-  for code, which is essential for the AdaptiveCodeEvolution pattern to
-  make data-driven optimization decisions.
-  
-  It also provides functions for tracking code generators and their usage
-  for the BootstrapEvolutionPipeline pattern.
+  This module provides the ability to record, retrieve, and analyze usage patterns
+  of code, which is a critical component of the Adaptive Code Evolution Pattern.
   """
   
   use GenServer
   
-  @table_name :adaptive_code_usage_stats
-  @generator_table :code_generators_registry
-  @generator_events_table :code_generator_events
+  require Logger
+  
+  # Client API
   
   @doc """
   Starts the UsageStats server.
@@ -37,16 +33,7 @@ defmodule AshSwarm.Foundations.UsageStats do
     - `:ok`
   """
   def update_stats(module, action, context \\ %{}) do
-    key = get_key(module, action)
-    timestamp = DateTime.utc_now()
-    
-    update = %{
-      timestamp: timestamp,
-      context: context
-    }
-    
-    GenServer.cast(__MODULE__, {:record_usage, key, update})
-    :ok
+    GenServer.cast(__MODULE__, {:update_stats, module, action, context})
   end
   
   @doc """
@@ -55,391 +42,216 @@ defmodule AshSwarm.Foundations.UsageStats do
   ## Parameters
   
     - `module`: The module to get statistics for.
-    - `action`: The action to get statistics for.
-    - `options`: Options for retrieving statistics, such as:
-      - `:period`: How far back to look, in seconds (default: all time)
-      - `:metrics`: Which metrics to include (default: all)
+    - `action_key`: The action key, typically "function_name/arity".
   
   ## Returns
   
-    - A map containing the usage statistics.
+    - A map containing usage statistics.
   """
-  def get_stats(module, action, options \\ []) do
-    key = get_key(module, action)
-    period = Keyword.get(options, :period, :all)
-    metrics = Keyword.get(options, :metrics, [:call_count, :avg_duration, :contexts])
-    
-    GenServer.call(__MODULE__, {:get_stats, key, period, metrics})
+  def get_stats(module, action_key) do
+    GenServer.call(__MODULE__, {:get_stats, module, action_key})
   end
   
   @doc """
-  Clears all usage statistics.
+  Gets all usage statistics.
+  
+  ## Returns
+  
+    - A map containing all recorded usage statistics.
+  """
+  def get_all_stats do
+    GenServer.call(__MODULE__, :get_all_stats)
+  end
+  
+  @doc """
+  Resets all usage statistics.
   
   ## Returns
   
     - `:ok`
   """
-  def clear_stats do
-    GenServer.call(__MODULE__, :clear_stats)
+  def reset_stats do
+    GenServer.cast(__MODULE__, :reset_stats)
   end
   
   @doc """
-  Lists all modules and actions that have usage statistics.
+  Gets the most frequently used functions for a module.
+  
+  ## Parameters
+  
+    - `module`: The module to get statistics for.
+    - `limit`: The maximum number of functions to return (default: 10).
   
   ## Returns
   
-    - A list of {module, action} tuples.
+    - A list of {action_key, call_count} tuples sorted by call count.
   """
-  def list_tracked_items do
-    GenServer.call(__MODULE__, :list_tracked_items)
+  def most_used_functions(module, limit \\ 10) do
+    GenServer.call(__MODULE__, {:most_used_functions, module, limit})
   end
   
-  # GenServer callbacks
+  @doc """
+  Gets the slow functions for a module based on average execution time.
+  
+  ## Parameters
+  
+    - `module`: The module to get statistics for.
+    - `limit`: The maximum number of functions to return (default: 10).
+  
+  ## Returns
+  
+    - A list of {action_key, avg_exec_time} tuples sorted by execution time.
+  """
+  def slow_functions(module, limit \\ 10) do
+    GenServer.call(__MODULE__, {:slow_functions, module, limit})
+  end
+  
+  # Server callbacks
   
   @impl true
   def init(_opts) do
-    # Create ETS table for storing usage statistics
-    table = :ets.new(@table_name, [:named_table, :set, :protected])
+    # State structure:
+    # %{
+    #   stats: %{
+    #     {Module, "function/arity"} => %{
+    #       call_count: 0,
+    #       first_call: nil,
+    #       last_call: nil,
+    #       execution_times: [],
+    #       avg_exec_time: 0,
+    #       contexts: []
+    #     }
+    #   }
+    # }
     
-    # Create table for storing code generators
-    generator_table = :ets.new(@generator_table, [:named_table, :set, :protected])
-    
-    # Create table for storing generator events
-    event_table = :ets.new(@generator_events_table, [:named_table, :bag, :protected])
-    
-    # Store metadata about tracked items
-    :ets.insert(table, {:_tracked_items, []})
-    
-    {:ok, %{
-      table: table,
-      generator_table: generator_table,
-      event_table: event_table
-    }}
-  end
-  
-  @impl true
-  def handle_cast({:record_usage, key, update}, state) do
-    # Get existing data or create new entry
-    current_data = case :ets.lookup(state.table, key) do
-      [{^key, data}] -> data
-      [] -> 
-        # This is a new item, add it to the tracked items list
-        [{:_tracked_items, tracked_items}] = :ets.lookup(state.table, :_tracked_items)
-        [module, action] = String.split(key, ".")
-        module = String.to_atom(module)
-        new_tracked_items = [{module, action} | tracked_items]
-        :ets.insert(state.table, {:_tracked_items, new_tracked_items})
-        
-        # Initialize empty data
-        %{
-          usage_history: [],
-          call_count: 0,
-          first_used_at: update.timestamp,
-          last_used_at: update.timestamp,
-          contexts: []
-        }
-    end
-    
-    # Update the data
-    updated_data = %{
-      current_data |
-      usage_history: [update | current_data.usage_history] |> Enum.take(100),
-      call_count: current_data.call_count + 1,
-      last_used_at: update.timestamp,
-      contexts: [update.context | current_data.contexts] |> Enum.take(20)
+    state = %{
+      stats: %{}
     }
     
-    # Store updated data
-    :ets.insert(state.table, {key, updated_data})
-    
-    {:noreply, state}
+    {:ok, state}
   end
   
   @impl true
-  def handle_call({:get_stats, key, period, metrics}, _from, state) do
-    result = case :ets.lookup(state.table, key) do
-      [{^key, data}] -> 
-        # Filter data by period if necessary
-        filtered_data = if period == :all do
-          data
-        else
-          cutoff = DateTime.add(DateTime.utc_now(), -period, :second)
-          %{
-            data |
-            usage_history: Enum.filter(
-              data.usage_history, 
-              fn entry -> DateTime.compare(entry.timestamp, cutoff) in [:gt, :eq] end
-            )
-          }
-        end
-        
-        # Extract requested metrics
-        metrics_map = %{}
-        metrics_map = if :call_count in metrics do
-          if period == :all do
-            Map.put(metrics_map, :call_count, filtered_data.call_count)
-          else
-            Map.put(metrics_map, :call_count, length(filtered_data.usage_history))
-          end
-        else
-          metrics_map
-        end
-        
-        metrics_map = if :first_used_at in metrics do
-          Map.put(metrics_map, :first_used_at, filtered_data.first_used_at)
-        else
-          metrics_map
-        end
-        
-        metrics_map = if :last_used_at in metrics do
-          Map.put(metrics_map, :last_used_at, filtered_data.last_used_at)
-        else
-          metrics_map
-        end
-        
-        metrics_map = if :contexts in metrics do
-          Map.put(metrics_map, :contexts, filtered_data.contexts)
-        else
-          metrics_map
-        end
-        
-        metrics_map = if :usage_history in metrics do
-          Map.put(metrics_map, :usage_history, filtered_data.usage_history)
-        else
-          metrics_map
-        end
-        
-        metrics_map
-        
-      [] -> %{error: "No statistics available for #{key}"}
+  def handle_cast({:update_stats, module, action, context}, state) do
+    # Get the action key
+    action_key = if is_atom(action) do
+      to_string(action)
+    else
+      action
     end
+    
+    # Get current stats for this action, or initialize if not exists
+    current_stats = Map.get(
+      state.stats,
+      {module, action_key},
+      %{
+        call_count: 0,
+        first_call: nil,
+        last_call: nil,
+        execution_times: [],
+        avg_exec_time: 0,
+        contexts: []
+      }
+    )
+    
+    # Update stats
+    now = DateTime.utc_now()
+    execution_time = Map.get(context, :execution_time)
+    
+    new_stats = %{
+      call_count: current_stats.call_count + 1,
+      first_call: current_stats.first_call || now,
+      last_call: now,
+      execution_times: if(execution_time, do: [execution_time | current_stats.execution_times], else: current_stats.execution_times),
+      avg_exec_time: if(execution_time, do: calculate_avg(current_stats.avg_exec_time, current_stats.call_count, execution_time), else: current_stats.avg_exec_time),
+      contexts: [context | current_stats.contexts] |> Enum.take(100)  # Keep only the last 100 contexts
+    }
+    
+    # Update state
+    new_stats_map = Map.put(state.stats, {module, action_key}, new_stats)
+    
+    {:noreply, %{state | stats: new_stats_map}}
+  end
+  
+  @impl true
+  def handle_cast(:reset_stats, _state) do
+    # Reset all stats
+    new_state = %{
+      stats: %{}
+    }
+    
+    {:noreply, new_state}
+  end
+  
+  @impl true
+  def handle_call({:get_stats, module, action_key}, _from, state) do
+    # Get stats for this module and action
+    stats = Map.get(
+      state.stats,
+      {module, action_key},
+      %{
+        call_count: 0,
+        first_call: nil,
+        last_call: nil,
+        execution_times: [],
+        avg_exec_time: 0,
+        contexts: []
+      }
+    )
+    
+    {:reply, stats, state}
+  end
+  
+  @impl true
+  def handle_call(:get_all_stats, _from, state) do
+    {:reply, state.stats, state}
+  end
+  
+  @impl true
+  def handle_call({:most_used_functions, module, limit}, _from, state) do
+    # Get all functions for this module
+    module_functions = Enum.filter(state.stats, fn {{mod, _action}, _stats} ->
+      mod == module
+    end)
+    
+    # Sort by call count
+    sorted = Enum.sort_by(module_functions, fn {_key, stats} ->
+      stats.call_count
+    end, :desc)
+    
+    # Take the top N
+    result = Enum.take(sorted, limit)
+    |> Enum.map(fn {{_mod, action}, stats} ->
+      {action, stats.call_count}
+    end)
     
     {:reply, result, state}
   end
   
   @impl true
-  def handle_call(:clear_stats, _from, state) do
-    :ets.delete_all_objects(state.table)
-    :ets.insert(state.table, {:_tracked_items, []})
+  def handle_call({:slow_functions, module, limit}, _from, state) do
+    # Get all functions for this module
+    module_functions = Enum.filter(state.stats, fn {{mod, _action}, _stats} ->
+      mod == module
+    end)
     
-    {:reply, :ok, state}
-  end
-  
-  @impl true
-  def handle_call(:list_tracked_items, _from, state) do
-    [{:_tracked_items, tracked_items}] = :ets.lookup(state.table, :_tracked_items)
+    # Sort by average execution time
+    sorted = Enum.sort_by(module_functions, fn {_key, stats} ->
+      stats.avg_exec_time
+    end, :desc)
     
-    {:reply, tracked_items, state}
+    # Take the top N
+    result = Enum.take(sorted, limit)
+    |> Enum.map(fn {{_mod, action}, stats} ->
+      {action, stats.avg_exec_time}
+    end)
+    
+    {:reply, result, state}
   end
   
   # Helper functions
   
-  defp get_key(module, action) do
-    "#{module}.#{action}"
-  end
-  
-  # BootstrapEvolutionPipeline functions
-  
-  @doc """
-  Stores a generator in the registry.
-  
-  ## Parameters
-  
-    - `generator`: The generator to store, which should be a map with at least an `id` field.
-  
-  ## Returns
-  
-    - `:ok`
-  """
-  def store_generator(generator) do
-    GenServer.call(__MODULE__, {:store_generator, generator})
-  end
-  
-  @doc """
-  Gets a generator from the registry.
-  
-  ## Parameters
-  
-    - `generator_id`: The ID of the generator to retrieve.
-  
-  ## Returns
-  
-    - The generator map if found, or a default empty map if not found.
-  """
-  def get_generator(generator_id) do
-    GenServer.call(__MODULE__, {:get_generator, generator_id})
-  end
-  
-  @doc """
-  Records a generation event for a generator.
-  
-  ## Parameters
-  
-    - `generator_id`: The ID of the generator.
-    - `context`: The context in which the generator was used.
-    - `metadata`: Additional metadata about the generation.
-  
-  ## Returns
-  
-    - `:ok`
-  """
-  def record_generation_event(generator_id, context, metadata) do
-    event = %{
-      generator_id: generator_id,
-      context: context,
-      metadata: metadata,
-      timestamp: DateTime.utc_now()
-    }
-    
-    GenServer.cast(__MODULE__, {:record_generation_event, event})
-  end
-  
-  @doc """
-  Analyzes generated code and stores the analysis.
-  
-  ## Parameters
-  
-    - `generator_id`: The ID of the generator.
-    - `code`: The generated code.
-    - `context`: The context in which the generator was used.
-  
-  ## Returns
-  
-    - `:ok`
-  """
-  def analyze_generated_code(generator_id, code, context) do
-    analysis = %{
-      generator_id: generator_id,
-      code_size: String.length(code),
-      context: context,
-      timestamp: DateTime.utc_now()
-    }
-    
-    GenServer.cast(__MODULE__, {:store_code_analysis, generator_id, analysis})
-  end
-  
-  @doc """
-  Gets usage data for a generator.
-  
-  ## Parameters
-  
-    - `generator_id`: The ID of the generator.
-    - `time_period`: The time period to retrieve data for, either `:all` or a number of seconds.
-  
-  ## Returns
-  
-    - A list of generation events for the generator.
-  """
-  def get_usage_data(generator_id, time_period) do
-    GenServer.call(__MODULE__, {:get_generator_usage, generator_id, time_period})
-  end
-  
-  @doc """
-  Gets feedback data for a generator.
-  
-  ## Parameters
-  
-    - `generator_id`: The ID of the generator.
-    - `time_period`: The time period to retrieve data for, either `:all` or a number of seconds.
-  
-  ## Returns
-  
-    - A list of feedback events for the generator.
-  """
-  def get_feedback_data(generator_id, time_period) do
-    GenServer.call(__MODULE__, {:get_generator_feedback, generator_id, time_period})
-  end
-  
-  @doc """
-  Stores feedback for a generator.
-  
-  ## Parameters
-  
-    - `generator_id`: The ID of the generator.
-    - `feedback`: The feedback data.
-  
-  ## Returns
-  
-    - `:ok`
-  """
-  def store_generator_feedback(generator_id, feedback) do
-    feedback_event = Map.put(feedback, :timestamp, DateTime.utc_now())
-    GenServer.cast(__MODULE__, {:store_generator_feedback, generator_id, feedback_event})
-  end
-  
-  # GenServer callbacks for BootstrapEvolutionPipeline
-  
-  @impl true
-  def handle_call({:store_generator, generator}, _from, state) do
-    :ets.insert(state.generator_table, {generator.id, generator})
-    {:reply, :ok, state}
-  end
-  
-  @impl true
-  def handle_call({:get_generator, generator_id}, _from, state) do
-    result = case :ets.lookup(state.generator_table, generator_id) do
-      [{^generator_id, generator}] -> generator
-      [] -> %{}
-    end
-    
-    {:reply, result, state}
-  end
-  
-  @impl true
-  def handle_cast({:record_generation_event, event}, state) do
-    :ets.insert(state.event_table, {{:generation, event.generator_id}, event})
-    {:noreply, state}
-  end
-  
-  @impl true
-  def handle_cast({:store_code_analysis, generator_id, analysis}, state) do
-    :ets.insert(state.event_table, {{:analysis, generator_id}, analysis})
-    {:noreply, state}
-  end
-  
-  @impl true
-  def handle_cast({:store_generator_feedback, generator_id, feedback}, state) do
-    :ets.insert(state.event_table, {{:feedback, generator_id}, feedback})
-    {:noreply, state}
-  end
-  
-  @impl true
-  def handle_call({:get_generator_usage, generator_id, time_period}, _from, state) do
-    events = :ets.match_object(state.event_table, {{:generation, generator_id}, :_})
-    
-    filtered_events = if time_period == :all do
-      events
-    else
-      cutoff = DateTime.add(DateTime.utc_now(), -time_period, :second)
-      
-      Enum.filter(events, fn {_, event} -> 
-        DateTime.compare(event.timestamp, cutoff) in [:gt, :eq]
-      end)
-    end
-    
-    # Extract just the event data
-    events_data = Enum.map(filtered_events, fn {_, event} -> event end)
-    
-    {:reply, events_data, state}
-  end
-  
-  @impl true
-  def handle_call({:get_generator_feedback, generator_id, time_period}, _from, state) do
-    feedback = :ets.match_object(state.event_table, {{:feedback, generator_id}, :_})
-    
-    filtered_feedback = if time_period == :all do
-      feedback
-    else
-      cutoff = DateTime.add(DateTime.utc_now(), -time_period, :second)
-      
-      Enum.filter(feedback, fn {_, event} -> 
-        DateTime.compare(event.timestamp, cutoff) in [:gt, :eq]
-      end)
-    end
-    
-    # Extract just the feedback data
-    feedback_data = Enum.map(filtered_feedback, fn {_, event} -> event end)
-    
-    {:reply, feedback_data, state}
+  defp calculate_avg(current_avg, count, new_value) do
+    ((current_avg * count) + new_value) / (count + 1)
   end
 end
